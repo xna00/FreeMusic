@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 import { svgDts } from "./svg";
 import svgr from "vite-plugin-svgr";
 
