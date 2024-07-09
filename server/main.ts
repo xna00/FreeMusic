@@ -26,31 +26,30 @@ const api: Fns = _api;
 const port = 8888;
 const base = `https://localhost:${port}`;
 
-const apiHandler = (
-  req: IncomingMessage,
-  res: ServerResponse<IncomingMessage> & {
-    req: IncomingMessage;
-  }
-) => {
+const parseFn = (req: IncomingMessage) => {
   assert(req.url);
-  if (req.method !== "POST") {
-    res.statusCode = 405;
-    res.end();
-  } else if (
-    !req.headers["content-type"]?.toLowerCase().includes("application/json")
+  const pathname = new URL(req.url, base).pathname;
+  const segs = pathname.split("/").slice(2);
+  const fnName = segs[segs.length - 1];
+  if (
+    !(
+      (fnName.startsWith("get") && req.method === "GET") ||
+      req.method === "POST"
+    )
   ) {
-    res.statusCode = 415;
-    res.end();
-  } else {
-    const pathname = new URL(req.url, base).pathname;
-    const fn = pathname
-      .split("/")
-      .slice(2)
-      .reduce((prev, curr) => (prev as any)?.[curr], api);
-    if (typeof fn !== "function") {
-      res.statusCode = 404;
-      res.end();
-    } else {
+    return;
+  }
+  const fn = segs.reduce((prev, curr) => (prev as any)?.[curr], api);
+  return fn;
+};
+
+const parseData = (req: IncomingMessage): Promise<string> => {
+  assert(req.url);
+  if (req.method === "GET") {
+    const u = new URL(req.url, base);
+    return Promise.resolve(u.searchParams.get("data") || "");
+  } else if (req.method === "POST") {
+    return new Promise((res, rej) => {
       let chunks: any[] = [];
       req.on("readable", () => {
         let chunk;
@@ -59,62 +58,90 @@ const apiHandler = (
         }
       });
       req.on("end", () => {
-        const id = state.id;
-        idMap[id] = {
-          requestHeaders: req.headers,
-        };
-        console.log(id, idMap[id]);
         const content = chunks.join("");
-        const send = (code: number, data: object) => {
-          if (
-            idMap[id].responseHeaders?.["content-type"] &&
-            idMap[id].responseHeaders?.["content-type"] !== "application/json"
-          ) {
-            res.writeHead(code, {
-              ...idMap[id].responseHeaders,
-            });
-            if (data instanceof ReadableStream) {
-              Readable.fromWeb(data).pipe(res, {
-                end: true,
-              });
-            }
-            return;
-          }
-          const body = JSON.stringify(data);
-          res
-            .writeHead(code, {
-              "content-length": Buffer.byteLength(body),
-              "content-type": "application/json",
-              ...idMap[id]?.responseHeaders,
-            })
-            .end(body);
-        };
-        try {
-          const params = JSON.parse(content);
-          console.log(fn, params);
-          const ret = (fn as any)(...params);
-          state.id++;
-          Promise.resolve(ret)
-            .then(
-              (data) => {
-                send(idMap[id].statusCode ?? 200, data);
-              },
-              (error) => {
-                send(idMap[id].statusCode ?? 500, { message: String(error) });
-              }
-            )
-            .finally(() => {
-              delete idMap[id];
-            });
-        } catch (error) {
-          send(400, {
-            message: {
-              params: content,
-              error: String(error),
-            },
+        res(content);
+      });
+    });
+  } else {
+    return Promise.resolve("");
+  }
+};
+
+const apiHandler = async (
+  req: IncomingMessage,
+  res: ServerResponse<IncomingMessage> & {
+    req: IncomingMessage;
+  }
+) => {
+  assert(req.url);
+  if (
+    !req.headers["content-type"]?.toLowerCase().includes("application/json")
+  ) {
+    res.statusCode = 415;
+    res.end();
+  } else {
+    const fn = parseFn(req);
+    if (typeof fn !== "function") {
+      res.statusCode = 404;
+      res.end();
+      return;
+    }
+
+    const content = await parseData(req);
+    const id = state.id;
+    idMap[id] = {
+      requestHeaders: req.headers,
+    };
+    console.log(id, idMap[id]);
+    const send = (code: number, data: object) => {
+      if (
+        idMap[id].responseHeaders?.["content-type"] &&
+        idMap[id].responseHeaders?.["content-type"] !== "application/json"
+      ) {
+        res.writeHead(code, {
+          ...idMap[id].responseHeaders,
+        });
+        if (data instanceof ReadableStream) {
+          Readable.fromWeb(data).pipe(res, {
+            end: true,
           });
         }
+        return;
+      }
+      const body = JSON.stringify(data);
+      res
+        .writeHead(code, {
+          "content-length": Buffer.byteLength(body),
+          "content-type": "application/json",
+          ...idMap[id]?.responseHeaders,
+        })
+        .end(body);
+    };
+    try {
+      const params = JSON.parse(content);
+      console.log(fn, params);
+      const ret = (fn as any)(...params);
+      state.id++;
+      Promise.resolve(ret)
+        .then(
+          (data) => {
+            send(idMap[id].statusCode ?? 200, data);
+          },
+          (error) => {
+            send(idMap[id].statusCode ?? 500, { message: String(error) });
+          }
+        )
+        .finally(() => {
+          delete idMap[id];
+        });
+    } catch (error) {
+      send(400, {
+        message: {
+          params: content,
+          error: String(error),
+        },
       });
+    } finally {
     }
   }
 };

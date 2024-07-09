@@ -1,26 +1,28 @@
-const CACHE_OLD = "AADD";
-const CACHE = "FREE_MUSIC_V1";
-self.addEventListener("install", (event) => {
-    self.skipWaiting();
-    caches.delete(CACHE_OLD);
-});
+const isGetMethod = (path) => !!path.split("/").pop()?.startsWith("get");
 const createHandler = (base) => {
     return new Proxy(() => { }, {
         get(target, p, receiver) {
-            if (p === "get") {
-                const ret = createHandler(base);
-                ret.method = "get";
+            if (p === "makeUrl") {
+                const ret = (...data) => {
+                    return isGetMethod(base)
+                        ? `${base}?data=${encodeURIComponent(JSON.stringify(data))}`
+                        : base;
+                };
                 return ret;
             }
-            return createHandler(`${base}/${p}`);
+            const ret = createHandler(`${base}/${p}`);
+            return ret;
         },
         apply(target, thisArg, argArray) {
-            return fetch(base, {
-                method: "POST",
+            const isGet = isGetMethod(base);
+            return fetch(isGet
+                ? `${base}?data=${encodeURIComponent(JSON.stringify(argArray))}`
+                : base, {
+                method: isGet ? "GET" : "POST",
                 headers: {
                     "content-type": "application/json",
                 },
-                body: JSON.stringify(argArray),
+                body: isGet ? null : JSON.stringify(argArray),
             }).then((res) => {
                 if (res.headers.get("content-type")?.toLowerCase() === "application/json") {
                     return res.json();
@@ -30,7 +32,14 @@ const createHandler = (base) => {
         },
     });
 };
+//
 const api = createHandler("/api");
+const CACHE_OLD = "AADD";
+const CACHE = "FREE_MUSIC_V1";
+self.addEventListener("install", (event) => {
+    self.skipWaiting();
+    caches.delete(CACHE_OLD);
+});
 const handler = async (e) => {
     const url = new URL(e.request.url);
     const pathname = url.pathname;

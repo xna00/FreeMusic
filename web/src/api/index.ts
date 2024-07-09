@@ -1,23 +1,36 @@
 import type { Api } from "server";
 
+const isGetMethod = (path: string) =>
+  !!path.split("/").pop()?.startsWith("get");
+
 const createHandler = (base: string): any => {
   return new Proxy(() => {}, {
-    get(target, p, receiver) {
-      if (p === "get") {
-        const ret = createHandler(base);
-        ret.method = "get";
+    get(target, p: string, receiver) {
+      if (p === "makeUrl") {
+        const ret = (...data: any) => {
+          return isGetMethod(base)
+            ? `${base}?data=${encodeURIComponent(JSON.stringify(data))}`
+            : base;
+        };
         return ret;
       }
-      return createHandler(`${base}/${p as string}`);
+      const ret = createHandler(`${base}/${p as string}`);
+      return ret;
     },
     apply(target: any, thisArg, argArray) {
-      return fetch(base, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(argArray),
-      }).then((res) => {
+      const isGet = isGetMethod(base);
+      return fetch(
+        isGet
+          ? `${base}?data=${encodeURIComponent(JSON.stringify(argArray))}`
+          : base,
+        {
+          method: isGet ? "GET" : "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: isGet ? null : JSON.stringify(argArray),
+        }
+      ).then((res) => {
         if (res.status === 401) {
           location.href = "/login";
         }
@@ -35,13 +48,9 @@ type Promisify<T> = {
   [K in keyof T]: T[K] extends (...params: infer P) => infer R
     ? ((
         ...params: P
-      ) => Promise<
-        unknown extends Awaited<R> ? Response : Awaited<R>
-      >) extends infer F
-      ? F & {
-          get: F;
-        }
-      : never
+      ) => Promise<unknown extends Awaited<R> ? Response : Awaited<R>>) & {
+        makeUrl: (...params: P) => string;
+      }
     : Promisify<T[K]>;
 };
 
