@@ -9,6 +9,10 @@ export const PlayerContext = createContext<{
   setCurrentPlaylist: (v: NewSong[]) => void;
   currentIndex: number;
   setCurrentIndex: (v: number) => void;
+  audioPlayer: HTMLAudioElement;
+  currentSong?: NewSong;
+  next: () => void;
+  prev: () => void;
 }>(null!);
 
 export const usePlayer = () => {

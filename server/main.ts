@@ -3,10 +3,20 @@ import "./models/index.js";
 
 import * as _api from "./api/index.js";
 
-import { createServer } from "http";
+import { createServer } from "https";
 import { idMap, state } from "./api/global.js";
 import { ReadableStream } from "stream/web";
 import { Readable } from "stream";
+import {
+  createReadStream,
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} from "fs";
+import { IncomingMessage, RequestListener, ServerResponse } from "http";
+import assert from "assert";
+import { extname, join, relative } from "path";
 
 type Fns = {
   [K in string]?: ((...params: any) => unknown) | Fns;
@@ -14,10 +24,15 @@ type Fns = {
 const api: Fns = _api;
 
 const port = 8888;
-const base = `http://localhost:${port}`;
+const base = `https://localhost:${port}`;
 
-const server = createServer((req, res) => {
-  console.log(req.url);
+const apiHandler = (
+  req: IncomingMessage,
+  res: ServerResponse<IncomingMessage> & {
+    req: IncomingMessage;
+  }
+) => {
+  assert(req.url);
   if (req.method !== "POST") {
     res.statusCode = 405;
     res.end();
@@ -25,9 +40,6 @@ const server = createServer((req, res) => {
     !req.headers["content-type"]?.toLowerCase().includes("application/json")
   ) {
     res.statusCode = 415;
-    res.end();
-  } else if (!req.url || !req.url.startsWith("/api/")) {
-    res.statusCode = 404;
     res.end();
   } else {
     const pathname = new URL(req.url, base).pathname;
@@ -63,7 +75,7 @@ const server = createServer((req, res) => {
             });
             if (data instanceof ReadableStream) {
               Readable.fromWeb(data).pipe(res, {
-                end: true
+                end: true,
               });
             }
             return;
@@ -105,7 +117,69 @@ const server = createServer((req, res) => {
       });
     }
   }
-});
+};
+
+const staticFiles: Record<string, number[]> = {
+  /*STATIC_FILES*/
+};
+function readAllFiles(dirPath: string) {
+  // 读取目录中的内容
+  readdirSync(dirPath).forEach((file) => {
+    const fullPath = join(dirPath, file);
+    const fileStats = statSync(fullPath);
+    if (fileStats.isDirectory()) {
+      // 如果是目录，递归调用 readAllFiles
+      readAllFiles(fullPath);
+    } else {
+      // 如果是文件，将文件路径和状态添加到 map 中
+      staticFiles["/" + relative("./www", fullPath)] = [
+        ...readFileSync(fullPath, {}),
+      ];
+    }
+  });
+}
+
+readAllFiles("./www");
+
+console.log(staticFiles);
+
+const mimeTypes: Record<string, string> = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".json": "application/json",
+  ".css": "text/css",
+  ".txt": "text/plain",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+};
+
+const server = createServer(
+  {
+    cert: readFileSync("./certs/server.crt"),
+    key: readFileSync("./certs/server.key"),
+  },
+  (req, res) => {
+    console.log(req.url);
+    assert(req.url);
+    if (req.url.startsWith("/api/")) {
+      apiHandler(req, res);
+    } else {
+      const pathname = new URL(req.url, base).pathname;
+      const path =
+        staticFiles[pathname] !== undefined ? pathname : "/index.html";
+      console.log(path);
+      const ext = extname(path).toLowerCase();
+      const contentType = mimeTypes[ext] || "application/octet-stream";
+
+      res.writeHead(200, "OK", {
+        "content-type": contentType,
+      });
+      console.log(staticFiles[path]);
+      res.write(Buffer.from(staticFiles[path]));
+      res.end();
+    }
+  }
+);
 
 server.listen(8888);
 console.log(base);

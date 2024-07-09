@@ -5,7 +5,14 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      screens: {
+        'window-controls-overlay': {
+          raw: '(display-mode: window-controls-overlay)'
+        }
+      }
+    },
+
   },
   plugins: [],
 }

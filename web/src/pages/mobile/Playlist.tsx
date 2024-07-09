@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { SongRecord } from "server/models/song";
-import { api } from "../api";
+import { api } from "../../api";
 import type { PlaylistRecord } from "server/models/playlist";
-import BottomPlayer from "../components/BottomPlayer";
-import { addToPlaylistAndPlay } from "../tools";
-import { usePlayer } from "../hooks/player";
+import BottomPlayer from "../../components/BottomPlayer";
+import { addToPlaylistAndPlay } from "../../tools";
+import { usePlayer } from "../../hooks/player";
 
 export default () => {
   const { id } = useParams();

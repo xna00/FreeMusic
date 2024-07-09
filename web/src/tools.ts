@@ -40,3 +40,24 @@ export const addToPlaylistAndPlay = (
     ],
   };
 };
+
+export const throttle = <P extends unknown[], R>(
+  f: (...params: P) => R,
+  time: number
+) => {
+  let locked = false;
+
+  return (...args: P): R | undefined => {
+    if (!locked) {
+      locked = true;
+
+      setTimeout(() => {
+        locked = false;
+      }, time);
+
+      return f(...args);
+    }
+  };
+};
+
+export const getImageUrl = (code: string) => `/images/${code}`;

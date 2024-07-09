@@ -14,7 +14,10 @@ export const login = async (user: NewUser) => {
     throw "Password is incorrect!";
   }
   idMap[id].responseHeaders = {
-    "set-cookie": `SESSIONID=${u.username}; path=/`,
+    "set-cookie": cookie.serialize("SESSIONID", u.username, {
+      path: "/",
+      expires: new Date(253402300000000),
+    }),
   };
 
   return {};

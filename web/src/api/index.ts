@@ -1,5 +1,4 @@
 import type { Api } from "server";
-export { cst } from "server";
 
 const createHandler = (base: string): any => {
   return new Proxy(() => {}, {

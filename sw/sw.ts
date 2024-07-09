@@ -1,8 +1,12 @@
 export declare var self: ServiceWorkerGlobalScope;
 import type { Api } from "../server/dist/index";
 
+const CACHE_OLD = "AADD";
+const CACHE = "FREE_MUSIC_V1";
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
+  caches.delete(CACHE_OLD);
 });
 
 const createHandler = (base: string): any => {
@@ -48,7 +52,6 @@ type Promisify<T> = {
 };
 
 const api = createHandler("/api") as Promisify<Api>;
-const CACHE = "AADD";
 
 const handler = async (e: FetchEvent) => {
   const url = new URL(e.request.url);
@@ -60,8 +63,23 @@ const handler = async (e: FetchEvent) => {
   }
   if (pathname.startsWith("/audios/")) {
     const res = await api.source.getAudio(pathname.replace("/audios/", ""));
-    cache.put(url, res.clone());
-    return res;
+    if (res.ok) {
+      const length = Number(res.headers.get("content-length") ?? "0");
+      const newRes = new Response(res.body, {
+        status: 200,
+        headers: {
+          "accept-ranges": "bytes",
+          "content-length": length.toString(),
+          "content-type": "application/octet-stream",
+          range: `bytes=0-${length - 1}`,
+        },
+      });
+      cache.put(url, newRes.clone());
+      console.log("newRes", newRes, [...newRes.headers]);
+      return newRes;
+    } else {
+      return res;
+    }
   }
   if (pathname.startsWith("/images/")) {
     const res = await api.source.getImage(pathname.replace("/images/", ""));

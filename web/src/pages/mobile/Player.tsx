@@ -1,15 +1,15 @@
 import { Link } from "react-router-dom";
-import { usePlayer } from "../hooks/player";
-import PlayIcon from "../components/icons/Play.svg";
-import PauseIcon from "../components/icons/Pause.svg";
-import PrevIcon from "../components/icons/Prev.svg";
-import NextIcon from "../components/icons/Next.svg";
-import { plainText } from "../tools";
-import HeartIcon from "../components/icons/Heart.svg";
-import ListIcon from "../components/icons/List.svg";
+import { usePlayer } from "../../hooks/player";
+import { plainText } from "../../tools";
 import { useEffect, useState } from "react";
-import { api } from "../api";
-import LeftIcon from "../components/icons/Left.svg";
+import { api } from "../../api";
+import HeartIcon from "../../components/icons/Heart.svg";
+import LeftIcon from "../../components/icons/Left.svg";
+import ListIcon from "../../components/icons/List.svg";
+import NextIcon from "../../components/icons/Next.svg";
+import PauseIcon from "../../components/icons/Pause.svg";
+import PlayIcon from "../../components/icons/Play.svg";
+import PrevIcon from "../../components/icons/Prev.svg";
 
 export default () => {
   const player = usePlayer();
